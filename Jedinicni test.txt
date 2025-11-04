@@ -1,0 +1,82 @@
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+JAVA = "java"
+JAVAC = "javac"
+
+def compile_java():
+    # Pretpostavlja se da je Calculator.java u root-u projekta (ROOT / "Calculator.java")
+    calc = ROOT / "Calculator.java"
+    if not calc.exists():
+        raise FileNotFoundError(f"Nije nađen {calc}")
+    # Napravi mali Runner koji poziva Calculator.Run i ispisuje rezultat
+    runner = ROOT / "Runner.java"
+    runner.write_text(textwrap.dedent("""
+        public class Runner {
+            public static void main(String[] args) {
+                String expr = args[0];
+                String out = Calculator.Run(expr);
+                System.out.print(out);
+            }
+        }
+    """).strip(), encoding="utf-8")
+
+    subprocess.check_call([JAVAC, str(calc), str(runner)], cwd=str(ROOT))
+
+def run_expr(expr: str) -> str:
+    compile_java()
+    out = subprocess.check_output(
+        ["java", "Runner", expr],
+        cwd=str(ROOT)
+    ).decode("utf-8").strip()
+    return out
+
+def test_simple_add():
+    assert run_expr("4+5") == "9.0"
+
+def test_precedence_mixed():
+    assert run_expr("10+5*4+3") == "33.0"
+
+def test_precedence_minus():
+    assert run_expr("10-5*4+3") == "-7.0"
+
+def test_division_left_assoc():
+    assert run_expr("8/4/2") == "1.0"
+
+def test_unary_at_start_minus():
+    assert run_expr("-3+5") == "2.0"
+
+def test_unary_at_start_plus():
+    assert run_expr("+3+5") == "8.0"
+
+def test_unary_in_middle_not_supported():
+    assert run_expr("2*-3") == "ERROR"
+
+def test_double_operator_error():
+    assert run_expr("5--3") == "ERROR"
+
+def test_div_by_zero_inf():
+    assert run_expr("12/0") == "Infinity"
+
+def test_zero_by_zero_nan():
+    assert run_expr("0/0") == "NaN"
+
+def test_spaces_leading_fail():
+    assert run_expr("   4+5") == "ERROR"
+
+def test_spaces_internal_fail():
+    assert run_expr("4 + 5") == "ERROR"
+
+def test_empty_throws():
+    # Očekujemo krah jer charAt(0) baca izuzetak; Runner će prekinuti bez outputa.
+    # U ovom slučaju test potvrđuje postojeći bug: prazno ne prolazi.
+    try:
+        _ = run_expr("")
+    except subprocess.CalledProcessError:
+        # OK — proces je pukao (neobrađen prazan ulaz)
+        return
+    # Ako ipak nekako vrati, obori test
+    assert False, "Očekivan pad procesa za prazan ulaz"

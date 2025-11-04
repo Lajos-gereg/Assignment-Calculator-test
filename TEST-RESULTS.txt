@@ -1,0 +1,58 @@
+TEST-RESULTS
+
+Projekat: Calculator
+Tip testiranja: Sistemsko (black-box) + jedna jedinična provera Calculate
+Datum: 2025-11-04
+Tester: Lajoš Gereg
+
+1. Strategija (black-box)
+
+Korišćene tehnike: ekvivalentne klase, granične vrednosti, kombinacije operatora, nevažeći ulazi, numeričke anomalije (Infinity/NaN), razmak/formatiranje.
+
+2. Test slučajevi i zapažanja
+
+Notacija: ULAZ → OČEKIVANO / STVARNO – STATUS – ZAPAŽANJE
+4+5 → 9 / 9.0 – PASS – Ispravno sabiranje.
+10+5*4+3 → 33 / 33.0 – PASS – Poštovan prioritet * nad +.
+10-5*4+3 → -7 / -7.0 – PASS.
+8/4/2 → (8/4)/2 = 1 / 1.0 – PASS – Levo-asocijativno deljenje.
+-3+5 (unaran minus na početku) → 2 / 2.0 – PASS – Kôd dodaje 0 na početak, radi.
++3+5 (unaran plus na početku) → 8 / 8.0 – PASS.
+2*-3 → Greška / ERROR – PASS (negativan broj u sredini izraza nije podržan; vraća “ERROR”).
+5--3 → Greška / ERROR – PASS (dvostruki operator).
+12/0 → Infinity / Infinity – PASS (IEEE 754).
+0/0 → NaN / NaN – PASS.
+Infinity+1 → prihvatiti literal Infinity? → Ulaz prihvaćen / Infinity – OBS – Parser eksplicitno dozvoljava "Infinity" i "-Infinity" kao brojeve.
+3.5*2  7 / 7.0 – PASS – Decimalne vrednosti rade.
+4+5 (vodeći razmaci) → sistem može tolerisati? → Očekivano: rad ili trim → STVARNO: ERROR – FAIL – Float.parseFloat ne toleriše razmake u ovoj implementaciji; nije urađen trim.
+4+5 (završni razmaci) → Očekivano: rad ili trim → STVARNO: ERROR – FAIL – Nema trim.
+4 + 5 (razmaci između tokena) → Očekivano: često podržano → STVARNO: ERROR – FAIL – Razmaci lome parsiranje.
+Prazan string "" → Greška → STVARNO: bacanje izuzetka (charAt(0)), nema “ERROR” – FAIL – Nije obrađen prazan ulaz.
+*3+5 → Greška / ERROR – PASS – Pravilno odbija, ali poruka je generička.
+3+5- (operator na kraju) → Greška / ERROR – PASS – Rano otkriveno, ali poruka je generička.
+1..2+3 → Greška / ERROR – PASS.
+Veoma dugačak izraz (npr. 5.000 operatora) → Očekivano: rezultat ili bar stabilno odbijanje → Potencijalno: rizik od duboke rekurzije u Calculate – RISK – Moguć StackOverflowError (nije repro u malim testovima).
+State-leak test: prvo validno 2+2 (→ 4.0), zatim pogrešan ulaz abc (→ ERROR), pa opet validno 3+3 (→ 6.0) → STVARNO: ispravno; nema “curenja” starog rezultata – PASS – Iako postoji globalni finalResult, završna rekurzija ipak setuje vrednost pre vraćanja.
+
+3. Glavne greške / nedostaci (black-box zaključci)
+
+- Razmaci nisu podržani (vodeći, završni, između tokena) → nepotreban “ERROR”.
+- Prazan ulaz izaziva StringIndexOutOfBoundsException (nema validacije).
+- Unarni minus/plus usred izraza (npr. 2*-3) nije podržan – realno očekivanje korisnika da radi.
+- Generička poruka “ERROR” – korisnik ne zna gde je greška (validacija i poruke bi trebalo detaljnije).
+- Rekurzivna implementacija može da dovede do StackOverflowError za vrlo duge izraze.
+- Globalni mutabilni state (finalResult) – nije thread-safe; nepoželjno za deljeni/konkurentni rad.
+- Dozvola literala "Infinity"/"-Infinity" u ulazu – nekonzistentno s tipičnim kalkulatorom (ali funkcionalno radi).
+- Nepodržane funkcionalnosti (dizajn): zagrade, procenti, napredne funkcije – nije bug, ali korisnička očekivanja često postoje.
+
+4. Preporuke
+
+Trimovati expression i odbaciti sve beline između tokena ili eksplicitno ukloniti \\s.
+Validacija pre obrade: prazan string, nedozvoljeni simboli, operator na početku/kraju (osim unarnog na početku), dupli operatori, više tačaka u broju.
+Podržati unarni minus/plus posle operatora: npr. dozvoli obrasce * -3, / -2, + -4, - -5.
+Umesto rekurzije, koristiti iterativni šanting-jar (Dijkstra) ili dva pasa (prvo */, pa +-) nad listama.
+Ukloniti globalni finalResult (vratiti vrednost iz funkcije) ili makar ga učiniti lokalnim.
+Vraćati deskriptivne greške (npr. ERROR: unexpected operator at pos 3).
+Opcionalno: zabraniti literalne “Infinity”/“-Infinity” kao ulaz korisnika.
+
+
